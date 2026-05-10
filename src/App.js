@@ -1,6 +1,3 @@
-bash
-
-cat > /mnt/user-data/outputs/reseller-ledger.jsx << 'ENDOFFILE'
 import { useState, useEffect, useRef, useMemo } from "react";
 
 // ── Supabase config ────────────────────────────────────────────────────────
@@ -341,7 +338,7 @@ function Purchase({ mk, monthPurchases, setPurchases, setInventory }) {
           <label>备注 <input value={form.note} onChange={set("note")} placeholder="来源、状况…"/></label>
           <label className="span2">商品图片
             <div className="img-upload" onClick={()=>imgRef.current.click()}>
-              {form.image?<img ={form.image} alt="" className="img-preview"/>:<span>📷 点击上传图片</span>}
+              {form.image?<img src={form.image} alt="" className="img-preview"/>:<span>📷 点击上传图片</span>}
             </div>
             <input ref={imgRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleImg}/>
           </label>
@@ -358,7 +355,7 @@ function Purchase({ mk, monthPurchases, setPurchases, setInventory }) {
           <div className="purchase-list">
             {monthPurchases.map(p=>(
               <div key={p.id} className="purchase-item">
-                {p.image&&<img ={p.image} alt="" className="thumb"/>}
+                {p.image&&<img src={p.image} alt="" className="thumb"/>}
                 <div className="purchase-info">
                   <div className="purchase-name">{p.name} {p.sku&&<span className="sku-badge">{p.sku}</span>}</div>
                   <div className="purchase-meta">数量 {p.qty} · 单件 {fmt$(p.unit_cost)} · <strong>总计 {fmt$(p.total_cost)}</strong></div>
@@ -419,7 +416,7 @@ function Inventory({ inventory, setInventory }) {
             {filtered.map(item=>(
               <div key={item.id} className="inv-card">
                 <div className="inv-img-wrap" onClick={()=>{setImgTarget(item.id);imgRef.current.click();}}>
-                  {item.image?<img ={item.image} alt="" className="inv-img"/>:<div className="inv-img-placeholder">📷</div>}
+                  {item.image?<img src={item.image} alt="" className="inv-img"/>:<div className="inv-img-placeholder">📷</div>}
                   <div className="img-overlay">换图</div>
                 </div>
                 <div className="inv-body">
@@ -488,7 +485,7 @@ function AddInventoryManual({ setInventory }) {
           <label>备注 <input value={form.note} onChange={set("note")} placeholder="可选"/></label>
           <label className="span2">图片
             <div className="img-upload" onClick={()=>imgRef.current.click()}>
-              {form.image?<img ={form.image} alt="" className="img-preview"/>:<span>📷 点击上传</span>}
+              {form.image?<img src={form.image} alt="" className="img-preview"/>:<span>📷 点击上传</span>}
             </div>
             <input ref={imgRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleImg}/>
           </label>
@@ -740,8 +737,3 @@ function Style() {
     .muted-sm{font-size:.74rem;color:var(--muted)}
   `}</style>;
 }
-ENDOFFILE
-echo "done"
-Output
-
-done
