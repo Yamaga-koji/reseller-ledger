@@ -1,19 +1,18 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 
-// ── Supabase config ────────────────────────────────────────────────────────
 const SUPABASE_URL = "https://cyxzbdquadnioexrpnsf.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN5eHpiZHF1YWRuaW9leHJwbnNmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgzODA4MDIsImV4cCI6MjA5Mzk1NjgwMn0.6ToWcm5pW1XMh7dGyssU9G8XML2AvWEDjsmua9REWuY";
 
-const headers = {
+const H = {
   "Content-Type": "application/json",
   "apikey": SUPABASE_KEY,
-  "Authorization": `Bearer ${SUPABASE_KEY}`,
+  "Authorization": "Bearer " + SUPABASE_KEY,
   "Prefer": "return=representation",
 };
 
 async function dbGet(table) {
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?order=created_at.desc`, { headers });
+    const res = await fetch(SUPABASE_URL + "/rest/v1/" + table + "?order=created_at.desc", { headers: H });
     if (!res.ok) return [];
     return res.json();
   } catch { return []; }
@@ -21,9 +20,8 @@ async function dbGet(table) {
 
 async function dbInsert(table, row) {
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
-      method: "POST", headers,
-      body: JSON.stringify(row),
+    const res = await fetch(SUPABASE_URL + "/rest/v1/" + table, {
+      method: "POST", headers: H, body: JSON.stringify(row),
     });
     if (!res.ok) return null;
     const data = await res.json();
@@ -32,252 +30,176 @@ async function dbInsert(table, row) {
 }
 
 async function dbDelete(table, id) {
-  try {
-    await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, { method: "DELETE", headers });
-  } catch {}
+  try { await fetch(SUPABASE_URL + "/rest/v1/" + table + "?id=eq." + id, { method: "DELETE", headers: H }); } catch {}
 }
 
 async function dbUpdate(table, id, patch) {
   try {
-    await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
-      method: "PATCH", headers,
-      body: JSON.stringify(patch),
+    await fetch(SUPABASE_URL + "/rest/v1/" + table + "?id=eq." + id, {
+      method: "PATCH", headers: H, body: JSON.stringify(patch),
     });
   } catch {}
 }
 
-// ── constants ──────────────────────────────────────────────────────────────
 const TAX_RATE = 0.25;
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const now = new Date();
 const THIS_YEAR = now.getFullYear();
 const THIS_MONTH = now.getMonth();
-const monthKey = (y, m) => `${y}-${String(m+1).padStart(2,"0")}`;
-const fmt$ = (n) => "$" + Number(n || 0).toFixed(2);
-const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+const monthKey = (y, m) => y + "-" + String(m+1).padStart(2,"0");
+const fmt = (n) => "$" + Number(n||0).toFixed(2);
 
 const TABS = [
-  { id:"dashboard", label:"📊 总览" },
-  { id:"income",    label:"💰 收入" },
-  { id:"purchase",  label:"📦 收货" },
-  { id:"inventory", label:"🏷️ 库存" },
-  { id:"expenses",  label:"💸 支出" },
-  { id:"tax",       label:"🗽 税务" },
+  {id:"dashboard",label:"📊 总览"},
+  {id:"income",label:"💰 收入"},
+  {id:"purchase",label:"📦 收货"},
+  {id:"inventory",label:"🏷️ 库存"},
+  {id:"expenses",label:"💸 支出"},
+  {id:"tax",label:"🗽 税务"},
 ];
 
-// ══════════════════════════════════════════════════════════════════════════
 export default function App() {
-  const [tab, setTab]           = useState("dashboard");
-  const [selYear, setSelYear]   = useState(THIS_YEAR);
+  const [tab, setTab] = useState("dashboard");
+  const [selYear, setSelYear] = useState(THIS_YEAR);
   const [selMonth, setSelMonth] = useState(THIS_MONTH);
-  const [loading, setLoading]   = useState(true);
-  const [incomes,   setIncomes]   = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [incomes, setIncomes] = useState([]);
   const [purchases, setPurchases] = useState([]);
   const [inventory, setInventory] = useState([]);
-  const [expenses,  setExpenses]  = useState([]);
+  const [expenses, setExpenses] = useState([]);
 
   useEffect(() => {
-    Promise.all([dbGet("incomes"), dbGet("purchases"), dbGet("inventory"), dbGet("expenses")])
-      .then(([inc, pur, inv, exp]) => {
-        setIncomes(inc || []);
-        setPurchases(pur || []);
-        setInventory(inv || []);
-        setExpenses(exp || []);
-        setLoading(false);
-      }).catch(() => setLoading(false));
+    Promise.all([dbGet("incomes"),dbGet("purchases"),dbGet("inventory"),dbGet("expenses")])
+      .then(([a,b,c,d]) => { setIncomes(a||[]); setPurchases(b||[]); setInventory(c||[]); setExpenses(d||[]); setLoading(false); })
+      .catch(() => setLoading(false));
   }, []);
 
-  const mk             = monthKey(selYear, selMonth);
-  const monthIncomes   = incomes.filter(i => i.month === mk);
-  const monthPurchases = purchases.filter(p => p.month === mk);
-  const monthExpenses  = expenses.filter(e => e.month === mk);
-  const totalIncome    = monthIncomes.reduce((s,i) => s+(i.amount||0), 0);
-  const totalPurchase  = monthPurchases.reduce((s,p) => s+(p.total_cost||0), 0);
-  const totalExpense   = monthExpenses.reduce((s,e) => s+(e.amount||0), 0);
-  const grossProfit    = totalIncome - totalPurchase - totalExpense;
-  const taxReserve     = Math.max(0, grossProfit) * TAX_RATE;
-  const netAfterTax    = grossProfit - taxReserve;
+  const mk = monthKey(selYear, selMonth);
+  const mInc = incomes.filter(i=>i.month===mk);
+  const mPur = purchases.filter(p=>p.month===mk);
+  const mExp = expenses.filter(e=>e.month===mk);
+  const tInc = mInc.reduce((s,i)=>s+(i.amount||0),0);
+  const tPur = mPur.reduce((s,p)=>s+(p.total_cost||0),0);
+  const tExp = mExp.reduce((s,e)=>s+(e.amount||0),0);
+  const gross = tInc-tPur-tExp;
+  const tax = Math.max(0,gross)*TAX_RATE;
+  const net = gross-tax;
 
-  const shared = {
-    mk, selYear, selMonth, setSelYear, setSelMonth,
-    incomes, setIncomes, purchases, setPurchases,
-    inventory, setInventory, expenses, setExpenses,
-    monthIncomes, monthPurchases, monthExpenses,
-    totalIncome, totalPurchase, totalExpense, grossProfit, taxReserve, netAfterTax,
-  };
+  const p = {mk,selYear,selMonth,setSelYear,setSelMonth,incomes,setIncomes,purchases,setPurchases,inventory,setInventory,expenses,setExpenses,mInc,mPur,mExp,tInc,tPur,tExp,gross,tax,net};
 
-  if (loading) return (
-    <div className="app"><Style />
-      <div className="loading"><div className="spinner"/><p>正在连接云端数据库…</p></div>
-    </div>
-  );
+  if (loading) return <div className="app"><Style/><div className="loading"><div className="spinner"/><p>连接云端数据库…</p></div></div>;
 
   return (
     <div className="app">
-      <Style />
-      <Header tab={tab} setTab={setTab} selYear={selYear} selMonth={selMonth}
-              setSelYear={setSelYear} setSelMonth={setSelMonth} />
+      <Style/>
+      <header className="header">
+        <div className="header-top">
+          <div className="logo">RESELLER<span>LEDGER</span></div>
+          <div className="cloud-badge">☁️ 云端同步</div>
+          <div className="month-picker">
+            <select value={selYear} onChange={e=>setSelYear(+e.target.value)}>
+              {[THIS_YEAR-1,THIS_YEAR,THIS_YEAR+1].map(y=><option key={y}>{y}</option>)}
+            </select>
+            <select value={selMonth} onChange={e=>setSelMonth(+e.target.value)}>
+              {MONTHS.map((m,i)=><option key={m} value={i}>{m}</option>)}
+            </select>
+          </div>
+        </div>
+        <nav className="tabs">
+          {TABS.map(t=><button key={t.id} className={"tab"+(tab===t.id?" active":"")} onClick={()=>setTab(t.id)}>{t.label}</button>)}
+        </nav>
+      </header>
       <main className="main">
-        {tab==="dashboard" && <Dashboard {...shared}/>}
-        {tab==="income"    && <Income    {...shared}/>}
-        {tab==="purchase"  && <Purchase  {...shared}/>}
-        {tab==="inventory" && <Inventory {...shared}/>}
-        {tab==="expenses"  && <Expenses  {...shared}/>}
-        {tab==="tax"       && <Tax selYear={selYear} incomes={incomes} expenses={expenses} purchases={purchases}/>}
+        {tab==="dashboard" && <Dashboard {...p}/>}
+        {tab==="income" && <Income {...p}/>}
+        {tab==="purchase" && <Purchase {...p}/>}
+        {tab==="inventory" && <Inventory {...p}/>}
+        {tab==="expenses" && <Expenses {...p}/>}
+        {tab==="tax" && <Tax selYear={selYear} incomes={incomes} expenses={expenses} purchases={purchases}/>}
       </main>
     </div>
   );
 }
 
-// ── Header ─────────────────────────────────────────────────────────────────
-function Header({ tab, setTab, selYear, selMonth, setSelYear, setSelMonth }) {
-  const years = [THIS_YEAR-1, THIS_YEAR, THIS_YEAR+1];
-  return (
-    <header className="header">
-      <div className="header-top">
-        <div className="logo">RESELLER<span>LEDGER</span></div>
-        <div className="cloud-badge">☁️ 云端同步</div>
-        <div className="month-picker">
-          <select value={selYear} onChange={e=>setSelYear(+e.target.value)}>
-            {years.map(y=><option key={y}>{y}</option>)}
-          </select>
-          <select value={selMonth} onChange={e=>setSelMonth(+e.target.value)}>
-            {MONTHS.map((m,i)=><option key={m} value={i}>{m}</option>)}
-          </select>
-        </div>
-      </div>
-      <nav className="tabs">
-        {TABS.map(t=>(
-          <button key={t.id} className={`tab${tab===t.id?" active":""}`} onClick={()=>setTab(t.id)}>
-            {t.label}
-          </button>
-        ))}
-      </nav>
-    </header>
-  );
-}
-
-// ── Dashboard ──────────────────────────────────────────────────────────────
-function Dashboard({ selYear, selMonth, totalIncome, totalPurchase, totalExpense, grossProfit, taxReserve, netAfterTax, monthIncomes, inventory }) {
-  const ebay    = monthIncomes.filter(i=>i.platform==="eBay").reduce((s,i)=>s+i.amount,0);
-  const mercari = monthIncomes.filter(i=>i.platform==="Mercari").reduce((s,i)=>s+i.amount,0);
-  const other   = monthIncomes.filter(i=>i.platform==="Other").reduce((s,i)=>s+i.amount,0);
-  const inStock = inventory.filter(i=>i.status==="In Stock");
-  const invValue = inStock.reduce((s,i)=>s+(i.cost_price||0)*(i.qty||1),0);
-  const invCount = inStock.reduce((s,i)=>s+(i.qty||1),0);
-
-  const cards = [
-    { label:"总收入",   val:fmt$(totalIncome),  color:"green",  sub:`eBay ${fmt$(ebay)} · Mercari ${fmt$(mercari)}` },
-    { label:"收货成本", val:fmt$(totalPurchase), color:"orange", sub:"本月采购支出" },
-    { label:"其他支出", val:fmt$(totalExpense),  color:"red",    sub:"运营费用合计" },
-    { label:"毛利润",   val:fmt$(grossProfit),   color:grossProfit>=0?"blue":"red", sub:"收入 − 成本 − 支出" },
-    { label:"预留税款", val:fmt$(taxReserve),    color:"yellow", sub:`按 ${(TAX_RATE*100).toFixed(0)}% 预留` },
-    { label:"税后净利", val:fmt$(netAfterTax),   color:netAfterTax>=0?"teal":"red", sub:"到手收入" },
+function Dashboard({selYear,selMonth,tInc,tPur,tExp,gross,tax,net,mInc,inventory}) {
+  const ebay=mInc.filter(i=>i.platform==="eBay").reduce((s,i)=>s+i.amount,0);
+  const mercari=mInc.filter(i=>i.platform==="Mercari").reduce((s,i)=>s+i.amount,0);
+  const other=mInc.filter(i=>i.platform==="Other").reduce((s,i)=>s+i.amount,0);
+  const inStock=inventory.filter(i=>i.status==="In Stock");
+  const invVal=inStock.reduce((s,i)=>s+(i.cost_price||0)*(i.qty||1),0);
+  const invCnt=inStock.reduce((s,i)=>s+(i.qty||1),0);
+  const cards=[
+    {label:"总收入",val:fmt(tInc),color:"green",sub:"eBay "+fmt(ebay)+" · Mercari "+fmt(mercari)},
+    {label:"收货成本",val:fmt(tPur),color:"orange",sub:"本月采购支出"},
+    {label:"其他支出",val:fmt(tExp),color:"red",sub:"运营费用合计"},
+    {label:"毛利润",val:fmt(gross),color:gross>=0?"blue":"red",sub:"收入 − 成本 − 支出"},
+    {label:"预留税款",val:fmt(tax),color:"yellow",sub:"按 "+(TAX_RATE*100).toFixed(0)+"% 预留"},
+    {label:"税后净利",val:fmt(net),color:net>=0?"teal":"red",sub:"到手收入"},
   ];
-
   return (
     <section>
       <p className="period-label">{MONTHS[selMonth]} {selYear} 月度概览</p>
       <div className="stat-grid">
-        {cards.map(c=>(
-          <div key={c.label} className={`stat-card c-${c.color}`}>
-            <span className="stat-label">{c.label}</span>
-            <strong className="stat-val">{c.val}</strong>
-            <small className="stat-sub">{c.sub}</small>
-          </div>
-        ))}
+        {cards.map(c=><div key={c.label} className={"stat-card c-"+c.color}><span className="stat-label">{c.label}</span><strong className="stat-val">{c.val}</strong><small className="stat-sub">{c.sub}</small></div>)}
       </div>
       <div className="row-2col">
         <div className="card">
           <h3 className="card-title">平台收入拆分</h3>
-          <PlatformBar label="eBay"    amount={ebay}    total={totalIncome} color="#f0b429"/>
-          <PlatformBar label="Mercari" amount={mercari} total={totalIncome} color="#3fb950"/>
-          <PlatformBar label="其他"   amount={other}   total={totalIncome} color="#58a6ff"/>
+          {[["eBay",ebay,"#f0b429"],["Mercari",mercari,"#3fb950"],["其他",other,"#58a6ff"]].map(([l,a,c])=>(
+            <div key={l} className="platform-row">
+              <span className="plat-label">{l}</span>
+              <div className="bar-wrap"><div className="bar-fill" style={{width:(tInc>0?a/tInc*100:0)+"%",background:c}}/></div>
+              <span className="plat-amt">{fmt(a)}</span>
+            </div>
+          ))}
         </div>
         <div className="card">
           <h3 className="card-title">在库库存</h3>
           <div className="inv-summary">
-            <div><span>在库件数</span><strong>{invCount} 件</strong></div>
-            <div><span>在库成本</span><strong>{fmt$(invValue)}</strong></div>
+            <div><span>在库件数</span><strong>{invCnt} 件</strong></div>
+            <div><span>在库成本</span><strong>{fmt(invVal)}</strong></div>
           </div>
-          {inStock.slice(0,4).map(i=>(
-            <div key={i.id} className="inv-row">
-              <span className="sku-badge">{i.sku||"—"}</span>
-              <span className="inv-name">{i.name}</span>
-              <span className="inv-qty">×{i.qty||1}</span>
-            </div>
-          ))}
-          {inStock.length>4 && <p className="muted-sm">还有 {inStock.length-4} 件…</p>}
+          {inStock.slice(0,4).map(i=><div key={i.id} className="inv-row"><span className="sku-badge">{i.sku||"—"}</span><span className="inv-name">{i.name}</span><span className="inv-qty">×{i.qty||1}</span></div>)}
+          {inStock.length>4&&<p className="muted-sm">还有 {inStock.length-4} 件…</p>}
         </div>
       </div>
     </section>
   );
 }
 
-function PlatformBar({ label, amount, total, color }) {
-  const pct = total>0 ? (amount/total*100) : 0;
-  return (
-    <div className="platform-row">
-      <span className="plat-label">{label}</span>
-      <div className="bar-wrap"><div className="bar-fill" style={{width:pct+"%",background:color}}/></div>
-      <span className="plat-amt">{fmt$(amount)}</span>
-    </div>
-  );
-}
-
-// ── Income ─────────────────────────────────────────────────────────────────
-function Income({ mk, monthIncomes, setIncomes }) {
-  const blank = { platform:"eBay", amount:"", order_no:"", note:"", date:"" };
-  const [form, setForm] = useState(blank);
-  const [saving, setSaving] = useState(false);
-  const set = k => e => setForm(f=>({...f,[k]:e.target.value}));
-
-  const add = async () => {
-    if (!form.amount) return;
+function Income({mk,mInc,setIncomes}) {
+  const blank={platform:"eBay",amount:"",order_no:"",note:"",date:""};
+  const [form,setForm]=useState(blank);
+  const [saving,setSaving]=useState(false);
+  const set=k=>e=>setForm(f=>({...f,[k]:e.target.value}));
+  const add=async()=>{
+    if(!form.amount) return;
     setSaving(true);
-    const row = { id:uid(), month:mk, platform:form.platform, amount:parseFloat(form.amount),
-      order_no:form.order_no, note:form.note, date:form.date||new Date().toLocaleDateString("en-US") };
-    const saved = await dbInsert("incomes", row);
-    setIncomes(p=>[saved||row, ...p]);
+    const row={month:mk,platform:form.platform,amount:parseFloat(form.amount),order_no:form.order_no,note:form.note,date:form.date||new Date().toLocaleDateString("en-US")};
+    const saved=await dbInsert("incomes",row);
+    setIncomes(p=>[saved||row,...p]);
     setForm(blank); setSaving(false);
   };
-
-  const del = async id => { await dbDelete("incomes",id); setIncomes(p=>p.filter(x=>x.id!==id)); };
-
+  const del=async id=>{await dbDelete("incomes",id); setIncomes(p=>p.filter(x=>x.id!==id));};
   return (
     <section>
       <div className="card">
         <h2 className="card-title">➕ 添加收入记录</h2>
         <div className="form-grid">
-          <label>平台
-            <select value={form.platform} onChange={set("platform")}>
-              <option>eBay</option><option>Mercari</option><option>Other</option>
-            </select>
-          </label>
-          <label>金额 ($) <input type="number" value={form.amount} onChange={set("amount")} placeholder="0.00" min="0"/></label>
-          <label>订单号 <input value={form.order_no} onChange={set("order_no")} placeholder="可选"/></label>
-          <label>日期 <input type="date" value={form.date} onChange={set("date")}/></label>
-          <label className="span2">备注 <input value={form.note} onChange={set("note")} placeholder="商品描述…"/></label>
+          <label>平台<select value={form.platform} onChange={set("platform")}><option>eBay</option><option>Mercari</option><option>Other</option></select></label>
+          <label>金额 ($)<input type="number" value={form.amount} onChange={set("amount")} placeholder="0.00" min="0"/></label>
+          <label>订单号<input value={form.order_no} onChange={set("order_no")} placeholder="可选"/></label>
+          <label>日期<input type="date" value={form.date} onChange={set("date")}/></label>
+          <label className="span2">备注<input value={form.note} onChange={set("note")} placeholder="商品描述…"/></label>
         </div>
         <button className="btn-primary" onClick={add} disabled={saving}>{saving?"保存中…":"添加收入"}</button>
       </div>
       <div className="card">
         <h2 className="card-title">本月收入明细</h2>
-        {monthIncomes.length===0 ? <p className="empty">暂无记录</p> : (
+        {mInc.length===0?<p className="empty">暂无记录</p>:(
           <table className="tbl">
             <thead><tr><th>平台</th><th>日期</th><th>金额</th><th>订单号</th><th>备注</th><th></th></tr></thead>
-            <tbody>
-              {monthIncomes.map(i=>(
-                <tr key={i.id}>
-                  <td><span className={`plat-tag ${i.platform?.toLowerCase()}`}>{i.platform}</span></td>
-                  <td>{i.date}</td>
-                  <td className="green">{fmt$(i.amount)}</td>
-                  <td className="mono">{i.order_no||"—"}</td>
-                  <td>{i.note||"—"}</td>
-                  <td><button className="del" onClick={()=>del(i.id)}>✕</button></td>
-                </tr>
-              ))}
-            </tbody>
+            <tbody>{mInc.map(i=><tr key={i.id}><td><span className={"plat-tag "+i.platform?.toLowerCase()}>{i.platform}</span></td><td>{i.date}</td><td className="green">{fmt(i.amount)}</td><td className="mono">{i.order_no||"—"}</td><td>{i.note||"—"}</td><td><button className="del" onClick={()=>del(i.id)}>✕</button></td></tr>)}</tbody>
           </table>
         )}
       </div>
@@ -285,57 +207,40 @@ function Income({ mk, monthIncomes, setIncomes }) {
   );
 }
 
-// ── Purchase ───────────────────────────────────────────────────────────────
-function Purchase({ mk, monthPurchases, setPurchases, setInventory }) {
-  const blank = { name:"", sku:"", buy_price:"", shipping:"", other:"", qty:"1", note:"", date:"", image:null };
-  const [form, setForm] = useState(blank);
-  const [saving, setSaving] = useState(false);
-  const set = k => e => setForm(f=>({...f,[k]:e.target.value}));
-  const imgRef = useRef();
-
-  const totalCost = useMemo(()=>{
-    const buy=parseFloat(form.buy_price)||0, ship=parseFloat(form.shipping)||0,
-          oth=parseFloat(form.other)||0, qty=parseInt(form.qty)||1;
-    return buy*qty+ship+oth;
-  },[form]);
-  const unitCost = totalCost/(parseInt(form.qty)||1);
-
-  const handleImg = e => {
-    const file=e.target.files[0]; if(!file) return;
-    const r=new FileReader(); r.onload=ev=>setForm(f=>({...f,image:ev.target.result})); r.readAsDataURL(file);
-  };
-
-  const add = async () => {
-    if (!form.name||!form.buy_price) return;
+function Purchase({mk,mPur,setPurchases,setInventory}) {
+  const blank={name:"",sku:"",buy_price:"",shipping:"",other:"",qty:"1",note:"",date:"",image:null};
+  const [form,setForm]=useState(blank);
+  const [saving,setSaving]=useState(false);
+  const set=k=>e=>setForm(f=>({...f,[k]:e.target.value}));
+  const imgRef=useRef();
+  const qty=parseInt(form.qty)||1;
+  const totalCost=useMemo(()=>(parseFloat(form.buy_price)||0)*qty+(parseFloat(form.shipping)||0)+(parseFloat(form.other)||0),[form]);
+  const unitCost=totalCost/qty;
+  const handleImg=e=>{const file=e.target.files[0];if(!file)return;const r=new FileReader();r.onload=ev=>setForm(f=>({...f,image:ev.target.result}));r.readAsDataURL(file);};
+  const add=async()=>{
+    if(!form.name||!form.buy_price) return;
     setSaving(true);
-    const prow = { id:uid(), month:mk, name:form.name, sku:form.sku,
-      buy_price:parseFloat(form.buy_price), shipping:parseFloat(form.shipping)||0,
-      other:parseFloat(form.other)||0, qty:parseInt(form.qty)||1,
-      total_cost:totalCost, unit_cost:unitCost,
-      note:form.note, image:form.image, date:form.date||new Date().toLocaleDateString("en-US") };
-    const irow = { id:uid(), sku:form.sku, name:form.name, cost_price:unitCost,
-      qty:parseInt(form.qty)||1, status:"In Stock", note:form.note, image:form.image, added_month:mk };
-    const [sp,si] = await Promise.all([dbInsert("purchases",prow), dbInsert("inventory",irow)]);
+    const prow={month:mk,name:form.name,sku:form.sku,buy_price:parseFloat(form.buy_price),shipping:parseFloat(form.shipping)||0,other:parseFloat(form.other)||0,qty,total_cost:totalCost,unit_cost:unitCost,note:form.note,image:form.image,date:form.date||new Date().toLocaleDateString("en-US")};
+    const irow={sku:form.sku,name:form.name,cost_price:unitCost,qty,status:"In Stock",note:form.note,image:form.image,added_month:mk};
+    const [sp,si]=await Promise.all([dbInsert("purchases",prow),dbInsert("inventory",irow)]);
     setPurchases(p=>[sp||prow,...p]);
     setInventory(inv=>[si||irow,...inv]);
     setForm(blank); setSaving(false);
   };
-
-  const del = async id => { await dbDelete("purchases",id); setPurchases(p=>p.filter(x=>x.id!==id)); };
-
+  const del=async id=>{await dbDelete("purchases",id);setPurchases(p=>p.filter(x=>x.id!==id));};
   return (
     <section>
       <div className="card">
         <h2 className="card-title">➕ 添加收货记录</h2>
         <div className="form-grid">
-          <label>商品名称 <input value={form.name} onChange={set("name")} placeholder="例：Jordan 1 Retro"/></label>
-          <label>SKU / 编号 <input value={form.sku} onChange={set("sku")} placeholder="例：JD1-001"/></label>
-          <label>收购单价 ($) <input type="number" value={form.buy_price} onChange={set("buy_price")} placeholder="0.00" min="0"/></label>
-          <label>运费 ($) <input type="number" value={form.shipping} onChange={set("shipping")} placeholder="0.00" min="0"/></label>
-          <label>其他费用 ($) <input type="number" value={form.other} onChange={set("other")} placeholder="关税、包装" min="0"/></label>
-          <label>数量 <input type="number" value={form.qty} onChange={set("qty")} placeholder="1" min="1"/></label>
-          <label>日期 <input type="date" value={form.date} onChange={set("date")}/></label>
-          <label>备注 <input value={form.note} onChange={set("note")} placeholder="来源、状况…"/></label>
+          <label>商品名称<input value={form.name} onChange={set("name")} placeholder="例：Jordan 1 Retro"/></label>
+          <label>SKU / 编号<input value={form.sku} onChange={set("sku")} placeholder="例：JD1-001"/></label>
+          <label>收购单价 ($)<input type="number" value={form.buy_price} onChange={set("buy_price")} placeholder="0.00" min="0"/></label>
+          <label>运费 ($)<input type="number" value={form.shipping} onChange={set("shipping")} placeholder="0.00" min="0"/></label>
+          <label>其他费用 ($)<input type="number" value={form.other} onChange={set("other")} placeholder="关税、包装" min="0"/></label>
+          <label>数量<input type="number" value={form.qty} onChange={set("qty")} placeholder="1" min="1"/></label>
+          <label>日期<input type="date" value={form.date} onChange={set("date")}/></label>
+          <label>备注<input value={form.note} onChange={set("note")} placeholder="来源、状况…"/></label>
           <label className="span2">商品图片
             <div className="img-upload" onClick={()=>imgRef.current.click()}>
               {form.image?<img src={form.image} alt="" className="img-preview"/>:<span>📷 点击上传图片</span>}
@@ -344,21 +249,21 @@ function Purchase({ mk, monthPurchases, setPurchases, setInventory }) {
           </label>
         </div>
         <div className="cost-summary">
-          <div><span>单件成本</span><strong>{fmt$(unitCost)}</strong></div>
-          <div><span>总成本</span><strong>{fmt$(totalCost)}</strong></div>
+          <div><span>单件成本</span><strong>{fmt(unitCost)}</strong></div>
+          <div><span>总成本</span><strong>{fmt(totalCost)}</strong></div>
         </div>
         <button className="btn-primary" onClick={add} disabled={saving}>{saving?"保存中…":"添加收货（自动入库）"}</button>
       </div>
       <div className="card">
         <h2 className="card-title">本月收货明细</h2>
-        {monthPurchases.length===0?<p className="empty">暂无记录</p>:(
+        {mPur.length===0?<p className="empty">暂无记录</p>:(
           <div className="purchase-list">
-            {monthPurchases.map(p=>(
+            {mPur.map(p=>(
               <div key={p.id} className="purchase-item">
                 {p.image&&<img src={p.image} alt="" className="thumb"/>}
                 <div className="purchase-info">
-                  <div className="purchase-name">{p.name} {p.sku&&<span className="sku-badge">{p.sku}</span>}</div>
-                  <div className="purchase-meta">数量 {p.qty} · 单件 {fmt$(p.unit_cost)} · <strong>总计 {fmt$(p.total_cost)}</strong></div>
+                  <div className="purchase-name">{p.name}{p.sku&&<span className="sku-badge">{p.sku}</span>}</div>
+                  <div className="purchase-meta">数量 {p.qty} · 单件 {fmt(p.unit_cost)} · <strong>总计 {fmt(p.total_cost)}</strong></div>
                   {p.note&&<div className="purchase-note">{p.note}</div>}
                 </div>
                 <button className="del" onClick={()=>del(p.id)}>✕</button>
@@ -371,44 +276,27 @@ function Purchase({ mk, monthPurchases, setPurchases, setInventory }) {
   );
 }
 
-// ── Inventory ──────────────────────────────────────────────────────────────
-function Inventory({ inventory, setInventory }) {
-  const [filter, setFilter] = useState("All");
-  const [search, setSearch] = useState("");
-  const [editId, setEditId] = useState(null);
-  const [editNote, setEditNote] = useState("");
-  const imgRef = useRef();
-  const [imgTarget, setImgTarget] = useState(null);
-
-  const filtered = inventory.filter(i=>{
-    const ms=filter==="All"||i.status===filter;
-    const mq=!search||i.name?.toLowerCase().includes(search.toLowerCase())||i.sku?.toLowerCase().includes(search.toLowerCase());
-    return ms&&mq;
-  });
-
-  const updateStatus = async (id,status) => { await dbUpdate("inventory",id,{status}); setInventory(inv=>inv.map(i=>i.id===id?{...i,status}:i)); };
-  const updateNote   = async (id,note)   => { await dbUpdate("inventory",id,{note});   setInventory(inv=>inv.map(i=>i.id===id?{...i,note}:i)); };
-  const updateImg    = async (id,image)  => { await dbUpdate("inventory",id,{image});  setInventory(inv=>inv.map(i=>i.id===id?{...i,image}:i)); };
-  const del          = async id          => { await dbDelete("inventory",id);           setInventory(inv=>inv.filter(i=>i.id!==id)); };
-
-  const handleImg = e => {
-    const file=e.target.files[0]; if(!file||!imgTarget) return;
-    const r=new FileReader();
-    r.onload=ev=>{ updateImg(imgTarget,ev.target.result); setImgTarget(null); };
-    r.readAsDataURL(file);
-  };
-
-  const statusColor = {"In Stock":"green","Listed":"blue","Sold":"muted","Returned":"orange"};
-
+function Inventory({inventory,setInventory}) {
+  const [filter,setFilter]=useState("All");
+  const [search,setSearch]=useState("");
+  const [editId,setEditId]=useState(null);
+  const [editNote,setEditNote]=useState("");
+  const imgRef=useRef();
+  const [imgTarget,setImgTarget]=useState(null);
+  const filtered=inventory.filter(i=>(filter==="All"||i.status===filter)&&(!search||i.name?.toLowerCase().includes(search.toLowerCase())||i.sku?.toLowerCase().includes(search.toLowerCase())));
+  const updStatus=async(id,status)=>{await dbUpdate("inventory",id,{status});setInventory(inv=>inv.map(i=>i.id===id?{...i,status}:i));};
+  const updNote=async(id,note)=>{await dbUpdate("inventory",id,{note});setInventory(inv=>inv.map(i=>i.id===id?{...i,note}:i));};
+  const updImg=async(id,image)=>{await dbUpdate("inventory",id,{image});setInventory(inv=>inv.map(i=>i.id===id?{...i,image}:i));};
+  const del=async id=>{await dbDelete("inventory",id);setInventory(inv=>inv.filter(i=>i.id!==id));};
+  const handleImg=e=>{const file=e.target.files[0];if(!file||!imgTarget)return;const r=new FileReader();r.onload=ev=>{updImg(imgTarget,ev.target.result);setImgTarget(null);};r.readAsDataURL(file);};
+  const sc={"In Stock":"green","Listed":"blue","Sold":"muted","Returned":"orange"};
   return (
     <section>
       <div className="card">
         <div className="inv-controls">
           <input className="search-input" value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 搜索商品名 / SKU"/>
           <div className="filter-tabs">
-            {["All","In Stock","Listed","Sold","Returned"].map(s=>(
-              <button key={s} className={`ftab${filter===s?" active":""}`} onClick={()=>setFilter(s)}>{s}</button>
-            ))}
+            {["All","In Stock","Listed","Sold","Returned"].map(s=><button key={s} className={"ftab"+(filter===s?" active":"")} onClick={()=>setFilter(s)}>{s}</button>)}
           </div>
         </div>
         {filtered.length===0?<p className="empty">暂无记录</p>:(
@@ -422,19 +310,13 @@ function Inventory({ inventory, setInventory }) {
                 <div className="inv-body">
                   {item.sku&&<span className="sku-badge">{item.sku}</span>}
                   <div className="inv-item-name">{item.name}</div>
-                  <div className="inv-item-meta">成本 {fmt$(item.cost_price)} · ×{item.qty||1}</div>
-                  <select className={`status-select s-${statusColor[item.status]||"muted"}`}
-                    value={item.status} onChange={e=>updateStatus(item.id,e.target.value)}>
+                  <div className="inv-item-meta">成本 {fmt(item.cost_price)} · ×{item.qty||1}</div>
+                  <select className={"status-select s-"+(sc[item.status]||"muted")} value={item.status} onChange={e=>updStatus(item.id,e.target.value)}>
                     {["In Stock","Listed","Sold","Returned"].map(s=><option key={s}>{s}</option>)}
                   </select>
                   {editId===item.id
-                    ?<input autoFocus value={editNote} onChange={e=>setEditNote(e.target.value)}
-                        onBlur={()=>{updateNote(item.id,editNote);setEditId(null);}}
-                        onKeyDown={e=>{if(e.key==="Enter"){updateNote(item.id,editNote);setEditId(null);}}}
-                        placeholder="备注…" style={{fontSize:".78rem",padding:"5px 8px"}}/>
-                    :<div className="inv-note" onClick={()=>{setEditId(item.id);setEditNote(item.note||"");}}>
-                        {item.note||<span className="muted-sm">+ 添加备注</span>}
-                      </div>
+                    ?<input autoFocus value={editNote} onChange={e=>setEditNote(e.target.value)} onBlur={()=>{updNote(item.id,editNote);setEditId(null);}} onKeyDown={e=>{if(e.key==="Enter"){updNote(item.id,editNote);setEditId(null);}}} placeholder="备注…" style={{fontSize:".78rem",padding:"5px 8px"}}/>
+                    :<div className="inv-note" onClick={()=>{setEditId(item.id);setEditNote(item.note||"");}}>{item.note||<span className="muted-sm">+ 添加备注</span>}</div>
                   }
                 </div>
                 <button className="del abs" onClick={()=>del(item.id)}>✕</button>
@@ -444,26 +326,23 @@ function Inventory({ inventory, setInventory }) {
         )}
         <input ref={imgRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleImg}/>
       </div>
-      <AddInventoryManual setInventory={setInventory}/>
+      <AddInvManual setInventory={setInventory}/>
     </section>
   );
 }
 
-function AddInventoryManual({ setInventory }) {
-  const blank = { name:"", sku:"", cost_price:"", qty:"1", status:"In Stock", note:"", image:null };
-  const [form, setForm] = useState(blank);
-  const [open, setOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const set = k => e => setForm(f=>({...f,[k]:e.target.value}));
-  const imgRef = useRef();
-  const handleImg = e => {
-    const file=e.target.files[0]; if(!file) return;
-    const r=new FileReader(); r.onload=ev=>setForm(f=>({...f,image:ev.target.result})); r.readAsDataURL(file);
-  };
-  const add = async () => {
+function AddInvManual({setInventory}) {
+  const blank={name:"",sku:"",cost_price:"",qty:"1",status:"In Stock",note:"",image:null};
+  const [form,setForm]=useState(blank);
+  const [open,setOpen]=useState(false);
+  const [saving,setSaving]=useState(false);
+  const set=k=>e=>setForm(f=>({...f,[k]:e.target.value}));
+  const imgRef=useRef();
+  const handleImg=e=>{const file=e.target.files[0];if(!file)return;const r=new FileReader();r.onload=ev=>setForm(f=>({...f,image:ev.target.result}));r.readAsDataURL(file);};
+  const add=async()=>{
     if(!form.name) return;
     setSaving(true);
-    const row={id:uid(),...form,cost_price:parseFloat(form.cost_price)||0,qty:parseInt(form.qty)||1};
+    const row={name:form.name,sku:form.sku,cost_price:parseFloat(form.cost_price)||0,qty:parseInt(form.qty)||1,status:form.status,note:form.note,image:form.image};
     const saved=await dbInsert("inventory",row);
     setInventory(inv=>[saved||row,...inv]);
     setForm(blank); setOpen(false); setSaving(false);
@@ -473,16 +352,12 @@ function AddInventoryManual({ setInventory }) {
       <button className="btn-ghost" onClick={()=>setOpen(o=>!o)}>{open?"▲ 收起":"➕ 手动添加库存"}</button>
       {open&&<>
         <div className="form-grid" style={{marginTop:16}}>
-          <label>商品名称 <input value={form.name} onChange={set("name")} placeholder="商品名"/></label>
-          <label>SKU <input value={form.sku} onChange={set("sku")} placeholder="SKU / 编号"/></label>
-          <label>成本价 ($) <input type="number" value={form.cost_price} onChange={set("cost_price")} placeholder="0.00"/></label>
-          <label>数量 <input type="number" value={form.qty} onChange={set("qty")} placeholder="1"/></label>
-          <label>状态
-            <select value={form.status} onChange={set("status")}>
-              {["In Stock","Listed","Sold","Returned"].map(s=><option key={s}>{s}</option>)}
-            </select>
-          </label>
-          <label>备注 <input value={form.note} onChange={set("note")} placeholder="可选"/></label>
+          <label>商品名称<input value={form.name} onChange={set("name")} placeholder="商品名"/></label>
+          <label>SKU<input value={form.sku} onChange={set("sku")} placeholder="SKU / 编号"/></label>
+          <label>成本价 ($)<input type="number" value={form.cost_price} onChange={set("cost_price")} placeholder="0.00"/></label>
+          <label>数量<input type="number" value={form.qty} onChange={set("qty")} placeholder="1"/></label>
+          <label>状态<select value={form.status} onChange={set("status")}>{["In Stock","Listed","Sold","Returned"].map(s=><option key={s}>{s}</option>)}</select></label>
+          <label>备注<input value={form.note} onChange={set("note")} placeholder="可选"/></label>
           <label className="span2">图片
             <div className="img-upload" onClick={()=>imgRef.current.click()}>
               {form.image?<img src={form.image} alt="" className="img-preview"/>:<span>📷 点击上传</span>}
@@ -496,57 +371,40 @@ function AddInventoryManual({ setInventory }) {
   );
 }
 
-// ── Expenses ───────────────────────────────────────────────────────────────
-function Expenses({ mk, monthExpenses, setExpenses }) {
-  const blank = { label:"", amount:"", category:"运营", date:"", note:"" };
-  const [form, setForm] = useState(blank);
-  const [saving, setSaving] = useState(false);
-  const set = k => e => setForm(f=>({...f,[k]:e.target.value}));
-  const CATS = ["运营","运费","仓储","广告","工具订阅","其他"];
-
-  const add = async () => {
+function Expenses({mk,mExp,setExpenses}) {
+  const blank={label:"",amount:"",category:"运营",date:"",note:""};
+  const [form,setForm]=useState(blank);
+  const [saving,setSaving]=useState(false);
+  const set=k=>e=>setForm(f=>({...f,[k]:e.target.value}));
+  const CATS=["运营","运费","仓储","广告","工具订阅","其他"];
+  const add=async()=>{
     if(!form.label||!form.amount) return;
     setSaving(true);
-    const row={id:uid(),month:mk,label:form.label,amount:parseFloat(form.amount),
-      category:form.category,note:form.note,date:form.date||new Date().toLocaleDateString("en-US")};
+    const row={month:mk,label:form.label,amount:parseFloat(form.amount),category:form.category,note:form.note,date:form.date||new Date().toLocaleDateString("en-US")};
     const saved=await dbInsert("expenses",row);
     setExpenses(p=>[saved||row,...p]);
     setForm(blank); setSaving(false);
   };
-  const del = async id => { await dbDelete("expenses",id); setExpenses(p=>p.filter(x=>x.id!==id)); };
-
+  const del=async id=>{await dbDelete("expenses",id);setExpenses(p=>p.filter(x=>x.id!==id));};
   return (
     <section>
       <div className="card">
         <h2 className="card-title">➕ 添加支出</h2>
         <div className="form-grid">
-          <label>支出项目 <input value={form.label} onChange={set("label")} placeholder="例：eBay Promoted Listings"/></label>
-          <label>金额 ($) <input type="number" value={form.amount} onChange={set("amount")} placeholder="0.00" min="0"/></label>
-          <label>类别
-            <select value={form.category} onChange={set("category")}>{CATS.map(c=><option key={c}>{c}</option>)}</select>
-          </label>
-          <label>日期 <input type="date" value={form.date} onChange={set("date")}/></label>
-          <label className="span2">备注 <input value={form.note} onChange={set("note")} placeholder="可选"/></label>
+          <label>支出项目<input value={form.label} onChange={set("label")} placeholder="例：eBay Promoted Listings"/></label>
+          <label>金额 ($)<input type="number" value={form.amount} onChange={set("amount")} placeholder="0.00" min="0"/></label>
+          <label>类别<select value={form.category} onChange={set("category")}>{CATS.map(c=><option key={c}>{c}</option>)}</select></label>
+          <label>日期<input type="date" value={form.date} onChange={set("date")}/></label>
+          <label className="span2">备注<input value={form.note} onChange={set("note")} placeholder="可选"/></label>
         </div>
         <button className="btn-primary" onClick={add} disabled={saving}>{saving?"保存中…":"添加支出"}</button>
       </div>
       <div className="card">
         <h2 className="card-title">本月支出明细</h2>
-        {monthExpenses.length===0?<p className="empty">暂无记录</p>:(
+        {mExp.length===0?<p className="empty">暂无记录</p>:(
           <table className="tbl">
             <thead><tr><th>项目</th><th>类别</th><th>日期</th><th>金额</th><th>备注</th><th></th></tr></thead>
-            <tbody>
-              {monthExpenses.map(e=>(
-                <tr key={e.id}>
-                  <td>{e.label}</td>
-                  <td><span className="cat-badge">{e.category}</span></td>
-                  <td>{e.date}</td>
-                  <td className="red">{fmt$(e.amount)}</td>
-                  <td>{e.note||"—"}</td>
-                  <td><button className="del" onClick={()=>del(e.id)}>✕</button></td>
-                </tr>
-              ))}
-            </tbody>
+            <tbody>{mExp.map(e=><tr key={e.id}><td>{e.label}</td><td><span className="cat-badge">{e.category}</span></td><td>{e.date}</td><td className="red">{fmt(e.amount)}</td><td>{e.note||"—"}</td><td><button className="del" onClick={()=>del(e.id)}>✕</button></td></tr>)}</tbody>
           </table>
         )}
       </div>
@@ -554,59 +412,48 @@ function Expenses({ mk, monthExpenses, setExpenses }) {
   );
 }
 
-// ── Tax ────────────────────────────────────────────────────────────────────
-function Tax({ selYear, incomes, expenses, purchases }) {
+function Tax({selYear,incomes,expenses,purchases}) {
   const yi=incomes.filter(i=>i.month?.startsWith(selYear)).reduce((s,i)=>s+i.amount,0);
   const yp=purchases.filter(p=>p.month?.startsWith(selYear)).reduce((s,p)=>s+(p.total_cost||0),0);
   const ye=expenses.filter(e=>e.month?.startsWith(selYear)).reduce((s,e)=>s+e.amount,0);
-  const yProfit=yi-yp-ye;
-  const se=Math.max(0,yProfit)*0.153;
-  const fed=Math.max(0,yProfit-se/2)*0.22;
-  const ny=Math.max(0,yProfit)*0.0685;
-  const nyc=Math.max(0,yProfit)*0.03876;
+  const yp2=yi-yp-ye;
+  const se=Math.max(0,yp2)*0.153;
+  const fed=Math.max(0,yp2-se/2)*0.22;
+  const ny=Math.max(0,yp2)*0.0685;
+  const nyc=Math.max(0,yp2)*0.03876;
   const total=se+fed+ny+nyc;
-  const qtr=total/4;
-
   const rows=[
-    {label:"年度总收入",          val:fmt$(yi),      note:"eBay + Mercari + 其他"},
-    {label:"年度收货成本 (COGS)", val:fmt$(yp),      note:"可抵税"},
-    {label:"年度运营支出",         val:fmt$(ye),      note:"可抵税"},
-    {label:"净利润 (应税收入)",    val:fmt$(yProfit), note:"Schedule C 利润"},
-    {label:"自雇税 SE Tax 15.3%", val:fmt$(se),      note:"社保 + 医保"},
-    {label:"联邦所得税 ~22%",      val:fmt$(fed),     note:"估算，实际因总收入而异"},
-    {label:"NY 州税 6.85%",        val:fmt$(ny),      note:"New York State"},
-    {label:"NYC 市税 3.876%",      val:fmt$(nyc),     note:"New York City residents"},
+    {label:"年度总收入",val:fmt(yi),note:"eBay + Mercari + 其他"},
+    {label:"年度收货成本 (COGS)",val:fmt(yp),note:"可抵税"},
+    {label:"年度运营支出",val:fmt(ye),note:"可抵税"},
+    {label:"净利润 (应税收入)",val:fmt(yp2),note:"Schedule C 利润"},
+    {label:"自雇税 SE Tax 15.3%",val:fmt(se),note:"社保 + 医保"},
+    {label:"联邦所得税 ~22%",val:fmt(fed),note:"估算"},
+    {label:"NY 州税 6.85%",val:fmt(ny),note:"New York State"},
+    {label:"NYC 市税 3.876%",val:fmt(nyc),note:"New York City"},
   ];
-
   return (
     <section>
-      <div className="card tax-disclaimer">
-        <p>⚠️ 以下为 <strong>{selYear} 年度</strong>税款估算，仅供参考。请咨询专业 CPA 获取准确数据。</p>
-      </div>
+      <div className="card tax-disclaimer"><p>⚠️ 以下为 <strong>{selYear} 年度</strong>税款估算，仅供参考，请咨询专业 CPA。</p></div>
       <div className="card">
         <h2 className="card-title">🗽 纽约 1099 税务估算</h2>
         <table className="tbl">
           <tbody>{rows.map(r=><tr key={r.label}><td>{r.label}</td><td className="mono">{r.val}</td><td className="muted-sm">{r.note}</td></tr>)}</tbody>
-          <tfoot><tr className="tax-total"><td>预计总税款</td><td className="red mono">{fmt$(total)}</td><td></td></tr></tfoot>
+          <tfoot><tr><td><strong>预计总税款</strong></td><td className="red mono">{fmt(total)}</td><td></td></tr></tfoot>
         </table>
       </div>
       <div className="card">
         <h2 className="card-title">📅 季度预缴税</h2>
-        <p className="hint-text">IRS 要求自雇者每季度预缴，避免罚款。每季度大约需要预缴：</p>
-        <div className="qtr-big">{fmt$(qtr)}<span>/季度</span></div>
+        <p className="hint-text">每季度大约需要预缴：</p>
+        <div className="qtr-big">{fmt(total/4)}<span>/季度</span></div>
         <div className="qtr-dates">
-          <div><strong>Q1</strong>Apr 15</div>
-          <div><strong>Q2</strong>Jun 17</div>
-          <div><strong>Q3</strong>Sep 16</div>
-          <div><strong>Q4</strong>Jan 15</div>
+          {[["Q1","Apr 15"],["Q2","Jun 17"],["Q3","Sep 16"],["Q4","Jan 15"]].map(([q,d])=><div key={q}><strong>{q}</strong>{d}</div>)}
         </div>
-        <p className="hint-text" style={{marginTop:12}}>通过 <strong>IRS Direct Pay</strong>（irs.gov/payments）或邮寄 Form 1040-ES 缴纳。</p>
       </div>
     </section>
   );
 }
 
-// ── Styles ─────────────────────────────────────────────────────────────────
 function Style() {
   return <style>{`
     @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;700&display=swap');
@@ -650,7 +497,7 @@ function Style() {
     .platform-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
     .plat-label{font-size:.8rem;width:56px;color:var(--muted)}
     .bar-wrap{flex:1;height:8px;background:var(--s2);border-radius:4px;overflow:hidden}
-    .bar-fill{height:100%;border-radius:4px;transition:width .4s ease}
+    .bar-fill{height:100%;border-radius:4px;transition:width .4s}
     .plat-amt{font-family:'DM Mono',monospace;font-size:.82rem;min-width:60px;text-align:right}
     .inv-summary{display:flex;gap:20px;margin-bottom:12px}
     .inv-summary div{display:flex;flex-direction:column;gap:2px}
@@ -686,7 +533,7 @@ function Style() {
     .tbl th{text-align:left;padding:8px 10px;color:var(--muted);font-weight:500;border-bottom:1px solid var(--border)}
     .tbl td{padding:9px 10px;border-bottom:1px solid rgba(37,43,53,.6);vertical-align:middle}
     .tbl tr:last-child td{border-bottom:none}
-    .tbl tfoot tr td{border-top:1px solid var(--border);padding-top:12px;font-weight:700}
+    .tbl tfoot tr td{border-top:1px solid var(--border);padding-top:12px}
     .sku-badge{background:rgba(88,166,255,.15);color:var(--blue);border:1px solid rgba(88,166,255,.25);border-radius:5px;padding:2px 7px;font-size:.72rem;font-family:'DM Mono',monospace}
     .plat-tag{border-radius:5px;padding:2px 8px;font-size:.75rem;font-weight:600}
     .plat-tag.ebay{background:rgba(240,180,41,.15);color:var(--accent)}
@@ -723,7 +570,6 @@ function Style() {
     .inv-note{font-size:.74rem;color:var(--muted);cursor:pointer;font-style:italic;min-height:18px}
     .inv-note:hover{color:var(--text)}
     .tax-disclaimer{background:rgba(240,180,41,.06);border-color:rgba(240,180,41,.3);font-size:.84rem;line-height:1.6}
-    .tax-total td{font-size:1rem}
     .qtr-big{font-family:'DM Mono',monospace;font-size:2.4rem;color:var(--red);margin:16px 0 4px}
     .qtr-big span{font-size:1rem;color:var(--muted)}
     .qtr-dates{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0}
