@@ -214,7 +214,7 @@ function Purchase({mk,mPur,setPurchases,setInventory}) {
   const set=k=>e=>setForm(f=>({...f,[k]:e.target.value}));
   const imgRef=useRef();
   const qty=parseInt(form.qty)||1;
-  const totalCost=useMemo(()=>(parseFloat(form.buy_price)||0)*qty+(parseFloat(form.shipping)||0)+(parseFloat(form.other)||0),[form]);
+  const totalCost=useMemo(()=>(parseFloat(form.buy_price)||0)*qty+(parseFloat(form.shipping)||0)+(parseFloat(form.other)||0),[form,qty]);
   const unitCost=totalCost/qty;
   const handleImg=e=>{const file=e.target.files[0];if(!file)return;const r=new FileReader();r.onload=ev=>setForm(f=>({...f,image:ev.target.result}));r.readAsDataURL(file);};
   const add=async()=>{
